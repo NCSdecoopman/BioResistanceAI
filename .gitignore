@@ -26,3 +26,5 @@ models/
 # Fichiers système
 Thumbs.db
 .DS_Store
+
+suppr/

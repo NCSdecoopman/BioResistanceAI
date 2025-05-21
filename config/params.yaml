@@ -1,0 +1,17 @@
+# Données
+paths:
+
+  # Brut
+  converted_dir: data/raw/converted
+  pheno: pheno.parquet
+  X_gpa: X_gpa.npy
+  X_snps: X_snps.npy
+  X_genexp: X_genexp.npy
+  
+  # Transformées
+  interim: data/interim
+  X_name: X_clean.parquet
+  y_name: y_clean.parquet
+
+  # Résultats
+  result: data/result

@@ -1,0 +1,28 @@
+# Fichiers Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Données
+data/
+models/
+*.pkl
+*.joblib
+
+# Env / IDE
+.env
+.venv/
+*.env
+*.DS_Store
+*.log
+
+# VSCode
+.vscode/
+
+# Fichiers système
+Thumbs.db
+.DS_Store

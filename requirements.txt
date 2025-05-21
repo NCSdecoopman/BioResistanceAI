@@ -13,3 +13,8 @@ torch>=2.1.0
 
 # Visualisation
 matplotlib>=3.7
+
+# Ajout secondaire
+cupy-cuda12x==12.3.0
+lightgbm>=4.1
+skorch>=0.13

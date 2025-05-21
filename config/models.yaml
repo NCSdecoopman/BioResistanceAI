@@ -39,17 +39,30 @@ models:
       n_estimators: [100, 200]
       max_depth: [5, 10, 20]
       learning_rate: [0.01, 0.1, 0.2]
-      tree_method: ["gpu_hist"]
+      tree_method: ["hist"]
+      device: ["cuda:0"] 
       predictor: ["gpu_predictor"]
       use_label_encoder: [false]
       eval_metric: ["logloss"]
 
-  MLPClassifier:
-    class_path: sklearn.neural_network.MLPClassifier
+  SkorchMLPClassifier:
+    class_path: skorch.NeuralNetClassifier
     params:
-      hidden_layer_sizes: [[100], [200], [200, 100]]
-      activation: ["relu", "tanh"]
-      alpha: [0.0001, 0.001]
-      max_iter: [500, 1000]
-      solver: ["adam"]
-      early_stopping: [true]
+      module: [your_module.MLP]
+      max_epochs: [20, 50]
+      lr: [0.01, 0.001]
+      device: ["cuda"]
+      optimizer: [torch.optim.Adam]
+
+  LGBMClassifier:
+    class_path: lightgbm.LGBMClassifier
+    params:
+      boosting_type: ["gbdt"]
+      n_estimators: [100, 200]
+      max_depth: [5, 10, -1]
+      num_leaves: [31, 64]
+      learning_rate: [0.01, 0.1]
+      class_weight: ["balanced", null]
+      device: ["gpu"]         
+      gpu_platform_id: [0]    # facultatif, mais explicite si plusieurs GPUs
+      gpu_device_id: [0]

@@ -3,6 +3,7 @@ from pathlib import Path
 from src.data.load_data import load_clean_data
 from src.data.split_scale import split_and_scale, get_scaler
 from src.features.feature_groups import get_feature_groups
+from src.utils.predict import safe_predict
 from src.models.model_selector import load_models
 from src.models.train_model import train_with_gridsearch
 from src.models.contributions import compute_group_contributions
@@ -57,14 +58,42 @@ def main(
         for model_name, model_info in model_config.items():
             start_time = time.time()
 
+            # --- Détection automatique du backend GPU ou CPU ---
+            params = model_info["params"]
+
+            device = params.get("device", ["cpu"])
+            if isinstance(device, str):
+                device = [device]
+            device_is_gpu = any("cuda" in str(d).lower() or "gpu" in str(d).lower() for d in device)
+
+
+            # --- Choix dynamique du n_jobs ---
+            model_n_jobs = 1 if device_is_gpu else n_jobs
+
+            # Pré-traitement spécial Skorch
+            if model_info["class"] == "skorch.NeuralNetClassifier":
+                # Remplace la chaîne "your_module.MLP" par la vraie classe Python
+                module_path = params.get("module", [None])[0]
+                if module_path:
+                    module_name, class_name = module_path.rsplit(".", 1)
+                    module = importlib.import_module(module_name)
+                    params["module"] = getattr(module, class_name)
+
+            # Si le modèle est Skorch, injecter la dimension d'entrée dans les hyperparamètres
+            if model_name == "SkorchMLPClassifier":
+                input_dim = X_train.shape[1]
+                model_info["params"]["module__input_dim"] = [input_dim]
+
+
             clf = train_with_gridsearch(
                 model_info["class"], model_info["params"],
-                X_train, y_train, cv=cv, n_jobs=n_jobs, scoring=scoring_func
+                X_train, y_train, cv=cv, n_jobs=model_n_jobs, scoring=scoring_func
             )
 
             train_duration = time.time() - start_time
 
-            y_pred = clf.best_estimator_.predict(X_test)
+            y_pred = safe_predict(clf.best_estimator_, X_test, model_name)
+
             score = scoring_func._score_func(y_test, y_pred) if hasattr(scoring_func, "_score_func") else scoring_func(y_test, y_pred)
 
             contributions = compute_group_contributions(

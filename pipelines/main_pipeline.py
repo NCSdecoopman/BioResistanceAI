@@ -19,8 +19,8 @@ def main(
     training_config_path: str = "config/train_config.yaml",
     models_path: str = "config/models.yaml"
 ):
-    # print("Étape 1 : Préparation des données")
-    # run_prepare_data(params_path)
+    print("Étape 1 : Préparation des données")
+    run_prepare_data(params_path)
 
     print("\nÉtape 2 : Entraînement des modèles")
     run_model_data(params_path, training_config_path, models_path)

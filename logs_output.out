@@ -1,5 +1,25 @@
 nohup: ignoring input
+Étape 1 : Préparation des données
+Chargement des fichiers...
+Prétraitement et fusion des données...
+Sauvegarde des données nettoyées...
+Données explicates prêtes : 414 lignes, 94241 variables explicatives
+   gpa_0  gpa_1  gpa_2  ...  genexp_6023  genexp_6024  genexp_6025
+0    0.0    0.0    0.0  ...     1.023478    -1.150854     0.249946
+1    0.0    0.0    0.0  ...    -0.999808    -1.188080    -1.271666
+2    0.0    0.0    0.0  ...    -0.226664     0.182418    -0.370267
+3    0.0    0.0    0.0  ...    -0.414947     1.288929    -0.299956
+4    0.0    0.0    0.0  ...     0.057243    -0.009337     1.414342
+
+[5 rows x 94241 columns]
+
+Données à expliquer prêtes : 414 lignes, 6 variables :
+   strain_ids  Tobramycin  Ceftazidim  Ciprofloxacin  Meropenem  Colistin
+0  CF592_Iso2         0.0         1.0            0.0        NaN         0
+1  CF609_Iso3         NaN         1.0            0.0        1.0         0
+2      CH2500         0.0         0.0            1.0        0.0         0
+3      CH2502         0.0         NaN            NaN        1.0         0
+4      CH2522         0.0         1.0            NaN        NaN         1
 
 Étape 2 : Entraînement des modèles
-
-Antibiotique : Tobramycin
+Antibiotiques:   0%|          | 0/5 [00:00<?, ?it/s]Ceftazidim:   0%|          | 0/7 [00:00<?, ?it/s]Meropenem:   0%|          | 0/7 [00:00<?, ?it/s]Tobramycin:   0%|          | 0/7 [00:00<?, ?it/s]Ciprofloxacin:   0%|          | 0/7 [00:00<?, ?it/s]Colistin:   0%|          | 0/7 [00:00<?, ?it/s]

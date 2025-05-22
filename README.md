@@ -1,4 +1,4 @@
-# BioResistanceAI
+# BioResistanceAI - Prédiction de la résistance bactérienne aux antibiotiques
 
 Prédiction de la résistance bactérienne aux antibiotiques à partir de données **génomiques**, **mutations SNP** et **transcriptomiques**.
 Projet mêlant **science des données**, **biologie moléculaire** et **intelligence artificielle**.

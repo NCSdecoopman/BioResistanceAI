@@ -13,6 +13,7 @@ from src.models.contributions import compute_group_contributions
 from src.evaluation.metrics import SCORERS
 from src.evaluation.reporting import save_results
 from src.data.config import load_yaml
+from src.utils.json import make_json_serializable
 import json
 
 from contextlib import contextmanager
@@ -43,71 +44,148 @@ def save_partial_result(result_path, abx, abx_results):
     else:
         current_results = {}
 
-    current_results[abx] = abx_results
+    if abx not in current_results:
+        current_results[abx] = {}
+
+    # Ajouter ou mettre à jour les modèles un par un
+    current_results[abx].update(abx_results)
 
     with open(result_path, "w") as f:
         json.dump(current_results, f, indent=2)
 
 
 
+
+def resolve_string_to_class(val):
+    if isinstance(val, str) and "." in val:
+        module_name, class_name = val.rsplit(".", 1)
+        return getattr(importlib.import_module(module_name), class_name)
+    return val
+
+
+
 def run_for_abx(abx, X, y, feature_types, model_config, scaler_str, test_size, random_state, cv, scoring_func, n_jobs):
+    
     y_abx = y[["strain_ids", abx]].dropna()
     X_abx = X.loc[y_abx.index]
     y_target = y_abx[abx]
 
     scaler = get_scaler(scaler_str)
     X_train, X_test, y_train, y_test, scaler = split_and_scale(
-        X_abx, y_target, test_size=test_size, random_state=random_state, scaler=scaler
+        X_abx, y_target, 
+        test_size=test_size, 
+        random_state=random_state, 
+        scaler=scaler
     )
 
     abx_results = {}
+
+    # Chargement ou initialisation des résultats partiels
+    partial_result_path = Path("results/partial_results.json")
+    if partial_result_path.exists():
+        with open(partial_result_path, "r") as f:
+            partial_results = json.load(f)
+    else:
+        partial_result_path.parent.mkdir(parents=True, exist_ok=True)
+        partial_results = {}
+        with open(partial_result_path, "w") as f:
+            json.dump(partial_results, f, indent=2)
+    
+    
     for model_name in tqdm(model_config.keys(), desc=f"{abx}", leave=False):
+        # Skip if model result already exists
+        if abx in partial_results and model_name in partial_results[abx]:
+            print(f"Skip {abx} - {model_name} (already computed)")
+            continue
+
         model_info = model_config[model_name]
         start_time = time.time()
 
         params = model_info["params"]
+
+        for key in ["criterion", "optimizer", "module"]:
+            if key in params:
+                if isinstance(params[key], list):
+                    params[key] = [resolve_string_to_class(v) for v in params[key]]
+                else:
+                    params[key] = resolve_string_to_class(params[key])
+
         device = params.get("device", ["cpu"])
         if isinstance(device, str):
             device = [device]
         device_is_gpu = any("cuda" in str(d).lower() or "gpu" in str(d).lower() for d in device)
         model_n_jobs = 1 if device_is_gpu else n_jobs
 
-        if model_info["class"] == "skorch.NeuralNetClassifier":
-            module_path = params.get("module", [None])[0]
-            if module_path:
-                module_name, class_name = module_path.rsplit(".", 1)
-                module = importlib.import_module(module_name)
-                params["module"] = getattr(module, class_name)
+        # Convertir le nom de la classe string en classe réelle
+        module_path = model_info["class"]
+        if isinstance(module_path, str):
+            module_name, class_name = module_path.rsplit(".", 1)
+            model_class = getattr(importlib.import_module(module_name), class_name)
+        else:
+            model_class = model_info["class"]  # déjà une classe
 
+        # Charger dynamiquement le module Skorch si besoin
+        if issubclass(model_class, importlib.import_module("skorch.classifier").NeuralNetClassifier):
+            if "module" in params:
+                if isinstance(params["module"], list):
+                    params["module"] = [resolve_string_to_class(v) for v in params["module"]]
+                else:
+                    params["module"] = resolve_string_to_class(params["module"])
+
+        # Conversion dynamique du nom d'optimizer si c’est une string
+        if isinstance(params.get("optimizer"), list):
+            opt_str = params["optimizer"][0]
+            if isinstance(opt_str, str) and "." in opt_str:
+                module_name, class_name = opt_str.rsplit(".", 1)
+                optimizer_module = importlib.import_module(module_name)
+                params["optimizer"] = [getattr(optimizer_module, class_name)]
+
+
+        
+        # Injecter input_dim si modèle Skorch custom
         if model_name == "SkorchMLPClassifier":
             input_dim = X_train.shape[1]
             model_info["params"]["module__input_dim"] = [input_dim]
 
+
+        X_tr, X_te = X_train, X_test
+
+       # entraînement
         clf = train_with_gridsearch(
-            model_info["class"], model_info["params"],
-            X_train, y_train, cv=cv, n_jobs=model_n_jobs, scoring=scoring_func
+            model_class,
+            model_info["params"],
+            X_tr, y_train, 
+            cv=cv, n_jobs=model_n_jobs, 
+            scoring=scoring_func
         )
 
         train_duration = time.time() - start_time
-        y_pred = safe_predict(clf.best_estimator_, X_test, model_name)
-        score = scoring_func._score_func(y_test, y_pred) if hasattr(scoring_func, "_score_func") else scoring_func(y_test, y_pred)
+
+        # Prédiction
+        y_pred = safe_predict(clf.best_estimator_, X_te, model_name)
+
+        score = (scoring_func._score_func(y_test, y_pred) 
+                if hasattr(scoring_func, "_score_func") 
+                else scoring_func(y_test, y_pred))
 
         contributions = compute_group_contributions(
             clf.best_estimator_, X_abx.copy(), y_target,
             scaler, feature_types, score, random_state
         )
 
-        abx_results[model_name] = {
+        result_dict = {
             scoring_func.__name__ if hasattr(scoring_func, "__name__") else "score": round(score, 3),
-            "best_params": clf.best_params_,
+            "best_params": make_json_serializable(clf.best_params_),
             "contributions_%": contributions,
             "train_time_sec": round(train_duration, 2)
         }
 
+        abx_results[model_name] = result_dict
+
         print(f"{abx} - {model_name} : recall={round(score, 3)} | durée={round(train_duration, 2)}s")
 
-    # Sauvegarde intermédiaire
-    save_partial_result(Path("results/partial_results.json"), abx, abx_results)
+        # Sauvegarde du résultat pour ce modèle uniquement
+        save_partial_result(Path("results/partial_results.json"), abx, {model_name: result_dict})
 
     return abx, abx_results
 

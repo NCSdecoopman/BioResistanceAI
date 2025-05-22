@@ -42,15 +42,19 @@ models:
       tree_method: ["hist"]
       device: ["cuda:0"]
       eval_metric: ["logloss"]
+      verbosity: [0]
 
   SkorchMLPClassifier:
     class_path: skorch.NeuralNetClassifier
     params:
-      module: [your_module.MLP]
+      module: ["src.models.module_MLP.MLP"]
       max_epochs: [20, 50]
-      lr: [0.01, 0.001]
+      lr: [0.001, 0.0003]
+      batch_size: [32]
       device: ["cuda"]
-      optimizer: [torch.optim.Adam]
+      optimizer: ["torch.optim.Adam"]
+      criterion: ["torch.nn.CrossEntropyLoss"] # classification
+      verbose: [0]
 
   LGBMClassifier:
     class_path: lightgbm.LGBMClassifier
@@ -64,3 +68,4 @@ models:
       device: ["gpu"]         
       gpu_platform_id: [0]    # facultatif, mais explicite si plusieurs GPUs
       gpu_device_id: [0]
+      verbose: [-1]

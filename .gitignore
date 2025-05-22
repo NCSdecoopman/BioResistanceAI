@@ -9,7 +9,6 @@ __pycache__/
 
 # Données
 data/
-models/
 *.pkl
 *.joblib
 
@@ -26,5 +25,3 @@ models/
 # Fichiers système
 Thumbs.db
 .DS_Store
-
-suppr/

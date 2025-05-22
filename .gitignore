@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+*.out
 
 # Notebooks
 .ipynb_checkpoints/

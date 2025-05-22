@@ -9,6 +9,7 @@ __pycache__/
 
 # Données
 data/
+results/
 *.pkl
 *.joblib
 

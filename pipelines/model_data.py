@@ -1,3 +1,7 @@
+# pipelines/main
+# Le pipeline charge ses paramètres depuis des fichiers YAML, prépare les données, puis entraîne et évalue en parallèle plusieurs modèles de machine learning pour chaque antibiotique, 
+# tout en sauvegardant les résultats et leur progression.
+
 import argparse
 import importlib
 import time
@@ -20,18 +24,28 @@ from contextlib import contextmanager
 from tqdm import tqdm
 import joblib
 
+# Contexte permettant d'afficher une barre de progression tqdm lors de l'utilisation de joblib.Parallel.
 @contextmanager
 def tqdm_joblib(tqdm_object):
+    # On définit une sous-classe du callback utilisé par joblib à chaque lot (batch) terminé
     class TqdmBatchCompletionCallback(joblib.parallel.BatchCompletionCallBack):
         def __call__(self, *args, **kwargs):
+            # À chaque batch terminé, on met à jour la barre de progression de tqdm
             tqdm_object.update(n=self.batch_size)
             return super().__call__(*args, **kwargs)
+
+    # On sauvegarde l'ancienne classe de callback pour la restaurer plus tard
     old_callback = joblib.parallel.BatchCompletionCallBack
+    # On remplace le callback par notre version custom qui met à jour tqdm
     joblib.parallel.BatchCompletionCallBack = TqdmBatchCompletionCallback
+
     try:
+        # On fournit tqdm_object au contexte (utile si on veut l'utiliser dans le bloc with)
         yield tqdm_object
     finally:
+        # On restaure le callback d'origine pour ne pas impacter les autres utilisations de joblib
         joblib.parallel.BatchCompletionCallBack = old_callback
+        # On ferme proprement la barre de progression
         tqdm_object.close()
 
 
@@ -57,6 +71,13 @@ def save_partial_result(result_path, abx, abx_results):
 
 
 def resolve_string_to_class(val):
+    # Résout dynamiquement une chaîne de caractères en une classe Python.
+    # >>> resolve_string_to_class("collections.Counter")
+    # <class 'collections.Counter'>
+    # >>> resolve_string_to_class(list)
+    # <class 'list'>
+    # >>> resolve_string_to_class("Counter")   # Sans point, retourne la chaîne elle-même
+    # 'Counter'
     if isinstance(val, str) and "." in val:
         module_name, class_name = val.rsplit(".", 1)
         return getattr(importlib.import_module(module_name), class_name)
@@ -65,11 +86,42 @@ def resolve_string_to_class(val):
 
 
 def run_for_abx(abx, X, y, feature_types, model_config, scaler_str, test_size, random_state, cv, scoring_func, n_jobs):
-    
+    """
+    Entraîne et évalue tous les modèles spécifiés dans model_config pour un antibiotique donné.
+    Gère la persistance des résultats partiels pour reprendre un calcul interrompu.
+
+    Paramètres
+    ----------
+    abx : str
+        Nom de l'antibiotique cible à prédire.
+    X : DataFrame
+        Table des features (observations × variables).
+    y : DataFrame
+        Table des étiquettes, avec colonne "strain_ids" et une colonne par antibiotique.
+    feature_types : dict
+        Dict qui indique l'origine ou le groupe de chaque feature (pour importance des groupes).
+    model_config : dict
+        Configuration des modèles à entraîner (nom → paramètres).
+    scaler_str : str
+        Nom du scaler à utiliser.
+    test_size : float
+        Taille du test set (ex : 0.2 pour 20%).
+    random_state : int
+        Graine de hasard.
+    cv : int
+        Nombre de folds pour la cross-validation.
+    scoring_func : callable
+        Fonction de scoring (ex : recall_score).
+    n_jobs : int
+        Nb de threads à utiliser (sauf si GPU, alors 1).
+    """
+
+    # 1. Sélectionne les échantillons non NaN pour cet antibiotique
     y_abx = y[["strain_ids", abx]].dropna()
     X_abx = X.loc[y_abx.index]
     y_target = y_abx[abx]
 
+    # 2. Scaling et split
     scaler = get_scaler(scaler_str)
     X_train, X_test, y_train, y_test, scaler = split_and_scale(
         X_abx, y_target, 
@@ -80,7 +132,7 @@ def run_for_abx(abx, X, y, feature_types, model_config, scaler_str, test_size, r
 
     abx_results = {}
 
-    # Chargement ou initialisation des résultats partiels
+    # 3. Chargement des résultats partiels (pour reprendre sans tout recalculer)
     partial_result_path = Path("results/partial_results.json")
     if partial_result_path.exists():
         with open(partial_result_path, "r") as f:
@@ -91,9 +143,9 @@ def run_for_abx(abx, X, y, feature_types, model_config, scaler_str, test_size, r
         with open(partial_result_path, "w") as f:
             json.dump(partial_results, f, indent=2)
     
-    
+    # 4. Pour chaque modèle de la config, entraînement et évaluation
     for model_name in tqdm(model_config.keys(), desc=f"{abx}", leave=False):
-        # Skip if model result already exists
+        # Skip si déjà traité (checkpoint)
         if abx in partial_results and model_name in partial_results[abx]:
             print(f"Skip {abx} - {model_name} (already computed)")
             continue
@@ -103,6 +155,7 @@ def run_for_abx(abx, X, y, feature_types, model_config, scaler_str, test_size, r
 
         params = model_info["params"]
 
+        # Résolution dynamique des strings vers classes/fonctions pour criterion, optimizer, module
         for key in ["criterion", "optimizer", "module"]:
             if key in params:
                 if isinstance(params[key], list):
@@ -110,6 +163,7 @@ def run_for_abx(abx, X, y, feature_types, model_config, scaler_str, test_size, r
                 else:
                     params[key] = resolve_string_to_class(params[key])
 
+        # Gestion CPU/GPU (sklearn ne supporte pas GPU, torch/Skorch oui)
         device = params.get("device", ["cpu"])
         if isinstance(device, str):
             device = [device]
@@ -139,10 +193,8 @@ def run_for_abx(abx, X, y, feature_types, model_config, scaler_str, test_size, r
                 module_name, class_name = opt_str.rsplit(".", 1)
                 optimizer_module = importlib.import_module(module_name)
                 params["optimizer"] = [getattr(optimizer_module, class_name)]
-
-
         
-        # Injecter input_dim si modèle Skorch custom
+        # Injecter input_dim pour les modèles MLP Skorch
         if model_name == "SkorchMLPClassifier":
             input_dim = X_train.shape[1]
             model_info["params"]["module__input_dim"] = [input_dim]
@@ -150,7 +202,7 @@ def run_for_abx(abx, X, y, feature_types, model_config, scaler_str, test_size, r
 
         X_tr, X_te = X_train, X_test
 
-       # entraînement
+       # Entraînement avec GridSearchCV
         clf = train_with_gridsearch(
             model_class,
             model_info["params"],
@@ -161,18 +213,21 @@ def run_for_abx(abx, X, y, feature_types, model_config, scaler_str, test_size, r
 
         train_duration = time.time() - start_time
 
-        # Prédiction
+        # Prédiction sur test set
         y_pred = safe_predict(clf.best_estimator_, X_te, model_name)
 
+        # Calcul du score
         score = (scoring_func._score_func(y_test, y_pred) 
                 if hasattr(scoring_func, "_score_func") 
                 else scoring_func(y_test, y_pred))
 
+        # Importance des groupes de variables (GPA, SNPs, etc.)
         contributions = compute_group_contributions(
             clf.best_estimator_, X_abx.copy(), y_target,
             scaler, feature_types, score, random_state
         )
 
+        # Construction du résultat sérialisable
         result_dict = {
             scoring_func.__name__ if hasattr(scoring_func, "__name__") else "score": round(score, 3),
             "best_params": make_json_serializable(clf.best_params_),
@@ -184,27 +239,34 @@ def run_for_abx(abx, X, y, feature_types, model_config, scaler_str, test_size, r
 
         print(f"{abx} - {model_name} : recall={round(score, 3)} | durée={round(train_duration, 2)}s")
 
-        # Sauvegarde du résultat pour ce modèle uniquement
+        # Sauvegarde du résultat pour ce modèle/abx uniquement
         save_partial_result(Path("results/partial_results.json"), abx, {model_name: result_dict})
 
     return abx, abx_results
+
 
 def main(params_path: str = "config/params.yaml",
          training_config_path: str = "config/train_config.yaml",
          models_path: str = "config/models.yaml"):
 
+    # Chargement des configs (données, modèles, entraînement)
     config_paths = load_yaml(params_path)["paths"]
     training_config = load_yaml(training_config_path)["training"]
     model_config = load_models(models_path)
 
+    # Construction des chemins des fichiers de travail à partir de la config
     interim_dir = Path(config_paths["interim"])
     X_path = interim_dir / config_paths["X_name"]
     y_path = interim_dir / config_paths["y_name"]
     result_path = Path(config_paths["result"]) / "all_model_results.json"
 
+    # Chargement des données features (X) et cibles (y) pré-nettoyées
     X, y = load_clean_data(X_path, y_path)
+
+    # Extraction des groupes de features (pour l’analyse des importances par groupe)
     feature_types = get_feature_groups(X)
 
+    # Chargement des paramètres globaux d'entraînement
     test_size = training_config.get("test_size", 0.2)
     random_state = training_config.get("random_state", 42)
     cv = training_config.get("cv", 5)
@@ -213,8 +275,10 @@ def main(params_path: str = "config/params.yaml",
     scoring_func = SCORERS.get(scoring_key, scoring_key)
     scaler_str = training_config.get("scaler", "sklearn.preprocessing.StandardScaler")
 
-    # Parallélisation sur les antibiotiques
+    # Constitution de la liste des antibiotiques à traiter (toutes les colonnes sauf strain_ids)
     abx_list = list(y.columns[1:])
+
+    # Boucle parallèle sur chaque antibiotique avec suivi de progression (tqdm)
     with tqdm_joblib(tqdm(desc="Antibiotiques", total=len(abx_list))) as progress_bar:
         results = joblib.Parallel(n_jobs=5)(
             joblib.delayed(run_for_abx)(abx, X, y, feature_types, model_config, scaler_str,
@@ -222,7 +286,7 @@ def main(params_path: str = "config/params.yaml",
             for abx in abx_list
         )
 
-
+    # Construction du dictionnaire global des résultats et sauvegarde des résultats globaux dans un fichier .json
     all_results = {abx: res for abx, res in results}
     save_results(all_results, result_path)
 

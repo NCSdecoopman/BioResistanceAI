@@ -4,13 +4,8 @@ import pandas as pd
 from pathlib import Path
 
 def preprocess_data(data: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Nettoie et aligne les données brutes du dataset.
+    """Nettoie et aligne les données brutes du dataset"""
 
-    Retourne :
-        X (DataFrame): variables explicatives fusionnées, sans NaN
-        y (DataFrame): cibles (phénotypes), index synchrone avec X
-    """
     pheno = data["pheno"]
     X_gpa    = pd.DataFrame(data["X_gpa"],    index=pheno.index)
     X_snps   = pd.DataFrame(data["X_snps"],   index=pheno.index)
@@ -29,11 +24,13 @@ def preprocess_data(data: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
     # Fusion horizontale
     X_full = pd.concat([X_gpa, X_snps, X_genexp], axis=1)
 
-    # —> SUPPRESSION DES LIGNES CONTENANT AU MOINS UN NaN
+    # Suppresion des lignes contenant au moins un NaN
     mask = ~X_full.isna().any(axis=1)
     X_full = X_full.loc[mask]
     pheno  = pheno.loc[mask]
 
+    # X (DataFrame): variables explicatives fusionnées, sans NaN
+    # y (DataFrame): cibles (phénotypes), index synchrone avec X
     return X_full, pheno
 
 

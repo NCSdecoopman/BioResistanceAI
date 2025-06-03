@@ -1,12 +1,12 @@
 # src/data/load_data.py
+
 import pandas as pd
 import numpy as np
 from pathlib import Path
 
 def load_raw_data(config: dict) -> dict:
-    """
-    Charge les données converties (parquet et npy) en utilisant les chemins spécifiés dans le fichier de config.
-    """
+    """Charge les données converties (parquet et npy) en utilisant les chemins spécifiés dans le fichier de config"""
+
     paths_cfg = config["paths"]
     data_dir = Path(paths_cfg["converted_dir"])
 

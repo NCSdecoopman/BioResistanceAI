@@ -1,12 +1,15 @@
+# src/utils/predict.py
+
+import numpy as np
+
 def safe_predict(estimator, X, model_name):
-    import numpy as np
+    
     try:
         from xgboost import DMatrix
     except ImportError:
         DMatrix = None
-    import skorch
 
-    # Pour Skorch : array float32 sans nom de colonnes
+    # Cas 1 : Prédiction Skorch (PyTorch) — nécessite un array float32 sans colonnes nommées
     if "Skorch" in model_name or hasattr(estimator, "module_"):
         if hasattr(X, "values"):
             X = X.values.astype("float32")
@@ -14,7 +17,7 @@ def safe_predict(estimator, X, model_name):
             X = X.astype("float32")
         return estimator.predict(X)
 
-    # Pour XGBoost : gérer GPU + array float32 si demandé
+    # Cas 2 : Prédiction XGBoost (array float32, gestion GPU)
     if "XGB" in (model_name or "") and DMatrix is not None:
         try:
             arr = X.values if hasattr(X, "values") else X
@@ -26,5 +29,5 @@ def safe_predict(estimator, X, model_name):
             return estimator.predict(arr.astype(np.float32))
 
 
-    # Pour tout le reste (sklearn, LGBM, RF, SVM…)
+    # Cas 3 : Par défaut (sklearn, LightGBM, etc) predict classique
     return estimator.predict(X)

@@ -1,9 +1,12 @@
+# src/models/train_model.py
+
 import numpy as np
 from skorch.classifier import NeuralNetClassifier
 from sklearn.model_selection import GridSearchCV
 from src.evaluation.metrics import SCORERS
 
 def train_with_gridsearch(model_class, params, X_train, y_train, cv, n_jobs, scoring):
+    """Recherche d’hyperparamètres (GridSearchCV) pour un modèle donné, en adaptant les types de données pour Skorch si nécessaire, puis retourne le grid-search entraîné"""
     scorer = SCORERS.get(scoring, scoring)
     estimator = model_class(**{k: v[0] if isinstance(v, list) else v 
                                for k, v in params.items()})

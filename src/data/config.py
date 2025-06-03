@@ -1,3 +1,5 @@
+# src/data/config.py
+
 import yaml
 
 def load_yaml(path: str) -> dict:

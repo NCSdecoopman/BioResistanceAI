@@ -1,6 +1,6 @@
-from sklearn.metrics import recall_score
-import skorch
+# src/models/contributions.py
 
+from sklearn.metrics import recall_score
 from src.utils.predict import safe_predict
 
 def compute_group_contributions(model, X_test, y_test, scaler, feature_types, recall_ref, random_state):

@@ -1,15 +1,14 @@
 # pipelines/prepare_data.py
+
 import argparse
-from pathlib import Path
-import subprocess
 import yaml
 
 from src.data.load_data import load_raw_data
 from src.data.preprocess import preprocess_data, save_interim_data
 
-def main(
-        params_path: str = "config/params.yaml"
-    ):
+# Charge les données brutes, applique les étapes de prétraitement et de fusion, 
+# puis sauvegarde les jeux de données nettoyés (features et labels) dans les répertoires intermédiaires spécifiés.
+def main(params_path: str = "config/params.yaml"):
     with open(params_path, "r") as f:
         config = yaml.safe_load(f)
 
@@ -23,6 +22,7 @@ def main(
 
     print("Sauvegarde des données nettoyées...")
     save_interim_data(X, y, paths)
+
     print(f"Données explicates prêtes : {X.shape[0]} lignes, {X.shape[1]} variables explicatives")
     print(X.head())
 

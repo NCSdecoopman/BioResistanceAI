@@ -1,3 +1,5 @@
+# src/utils/paths.py
+
 from pathlib import Path
 
 def ensure_dir(path):

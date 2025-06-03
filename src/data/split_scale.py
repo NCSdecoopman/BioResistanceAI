@@ -1,11 +1,11 @@
+# src/data/split_scale.py
+
 from sklearn.model_selection import train_test_split
 import importlib
 import pandas as pd
 
 def get_scaler(scaler_path: str):
-    """
-    Charge dynamiquement un scaler à partir d’un chemin complet, ex : sklearn.preprocessing.StandardScaler
-    """
+    """Charge dynamiquement un scaler à partir d’un chemin complet, ex : sklearn.preprocessing.StandardScaler"""
     module, class_name = scaler_path.rsplit(".", 1)
     return getattr(importlib.import_module(module), class_name)()
 

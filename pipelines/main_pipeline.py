@@ -1,3 +1,6 @@
+# ^pipelines/main_pipeline.py
+# Pipeline principal
+
 import argparse
 from pipelines import prepare_data, model_data
 

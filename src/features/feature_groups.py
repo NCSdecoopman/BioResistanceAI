@@ -1,3 +1,6 @@
+# src/features/feature_groups.py
+# Classe les colonnes du DataFrame X en trois groupes (gpa, snps, genexp
+
 def get_feature_groups(X):
     return {
         "gpa": [c for c in X.columns if c.startswith("gpa_")],

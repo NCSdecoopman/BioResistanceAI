@@ -48,10 +48,25 @@ models:
     class_path: skorch.NeuralNetClassifier
     params:
       module: ["src.models.module_MLP.MLP"]
+      module__input_dim: [94241]
       max_epochs: [20, 50]
       lr: [0.001, 0.0003]
       batch_size: [32]
       device: ["cuda"]
+      optimizer: ["torch.optim.Adam"]
+      criterion: ["torch.nn.CrossEntropyLoss"] # classification
+      verbose: [0]
+
+  SkorchMLPClassifierOther:
+    class_path: skorch.NeuralNetClassifier
+    params:
+      module: ["src.models.module_MLP.MLP"]
+      module__input_dim: [94241]
+      max_epochs: [50, 100]
+      lr: [0.001, 0.0003, 0.0001]
+      batch_size: [64, 128]
+      device: ["cuda"]
+      optimizer__weight_decay: [0.0001] # régularisation L2 optimale
       optimizer: ["torch.optim.Adam"]
       criterion: ["torch.nn.CrossEntropyLoss"] # classification
       verbose: [0]

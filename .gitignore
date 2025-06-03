@@ -8,8 +8,8 @@ __pycache__/
 # Notebooks
 .ipynb_checkpoints/
 
-# Données
-data/
+# Ignorer le dossier racine `data/` (mais pas `src/data/`)
+/data/ 
 results/
 *.pkl
 *.joblib
